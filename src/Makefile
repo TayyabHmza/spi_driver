@@ -10,9 +10,9 @@ build/spi.ko:
 	@mkdir -p ../build
 	@mv -t ../build .*.*.cmd *.order *.symvers *.mod *.mod.c *.o *.ko
 
-put:build/spi.ko
+put: build/spi.ko
 	cp ../build/spi.ko   ~/buildroot-2024.02-rc1/output/target/media/
-
+	
 clean:
 	rm -rf ../build
 	#make -C $(LINUX_PATH) M=$(PWD) clean
