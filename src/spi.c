@@ -8,13 +8,24 @@
 #include <linux/log2.h>
 
 // Definations
+MODULE_LICENSE("GPL");
 #define NO_ERROR        0
 #define ERROR           1
+
+static int __init spi_init(void);
+static void __exit spi_exit(void);
+static int spi_probe(struct platform_device *dev);
+static int spi_remove(struct platform_device *dev);
 
 // Structures
 
 struct spi_device_state {
     void __iomem *base_address;
+};
+
+static const struct of_device_id matching_devices[] = {
+	{ .compatible = "sifive,spi0", },
+	{}
 };
 
 static struct platform_driver spi_driver = {
@@ -24,11 +35,6 @@ static struct platform_driver spi_driver = {
 		.name = "Salman-Tayyab-Zawaher's_driver",
 		.of_match_table = matching_devices
 	},
-};
-
-static const struct of_device_id matching_devices[] = {
-	{ .compatible = "sifive,spi0", },
-	{}
 };
 
 // Functions
@@ -64,6 +70,6 @@ static int spi_remove(struct platform_device *dev)
 
 // Register functions / structures with kernel
 MODULE_DEVICE_TABLE(of, matching_devices);
-module_init(spi_init);
-module_exit(spi_exit);
+//module_init(spi_init);
+//module_exit(spi_exit);
 
