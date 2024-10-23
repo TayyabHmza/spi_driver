@@ -70,6 +70,4 @@ static int spi_remove(struct platform_device *dev)
 
 // Register functions / structures with kernel
 MODULE_DEVICE_TABLE(of, matching_devices);
-//module_init(spi_init);
-//module_exit(spi_exit);
 
