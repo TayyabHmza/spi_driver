@@ -6,16 +6,20 @@
 #include <linux/spi/spi.h>
 #include <linux/io.h>
 #include <linux/log2.h>
+#include <linux/proc_fs.h>
 
 // Definations
-MODULE_LICENSE("GPL");
 #define NO_ERROR        0
 #define ERROR           1
+
+char pseudo_device[8];
 
 static int __init spi_init(void);
 static void __exit spi_exit(void);
 static int spi_probe(struct platform_device *dev);
 static int spi_remove(struct platform_device *dev);
+static ssize_t driver_read (struct file *file_pointer, char __user *user_space_buffer, size_t count, loff_t *offset);
+static ssize_t driver_write (struct file *file_pointer, const char *user_space_buffer, size_t count, loff_t *offset);
 
 // Structures
 
@@ -37,11 +41,24 @@ static struct platform_driver spi_driver = {
 	},
 };
 
+struct proc_ops driver_proc_ops = {
+    .proc_read = driver_read,
+    .proc_write = driver_write
+};
+
 // Functions
 
 static int __init spi_init(void)
 {
 	printk("Hello, world!\n");
+
+	static struct proc_dir_entry *spi_proc_node;
+	spi_proc_node = proc_create("stz_spidriver", 0, NULL, &driver_proc_ops);
+    if  (spi_proc_node == NULL){
+        printk ("module_init : error\n");
+        return ERROR;
+    }
+
   	return NO_ERROR;
 }
 
@@ -68,6 +85,51 @@ static int spi_remove(struct platform_device *dev)
 	return NO_ERROR;
 }
 
-// Register functions / structures with kernel
+static char msg[20] = "No data recieved!\n";
+
+static ssize_t driver_read (struct file *file_pointer,
+                    	 	char __user *user_space_buffer,
+                    	 	size_t count,
+                    	 	loff_t *offset)
+{
+	printk ("Reading spi: \n");
+
+    size_t len = strlen(msg);
+    if (*offset >= len){
+        return 0;
+    }
+
+    int result = copy_to_user(user_space_buffer, msg, len);
+    *offset += len;
+    
+    return len;
+}
+
+static ssize_t driver_write(struct file *file_pointer, 
+						const char *user_space_buffer, 
+						size_t count, 
+						loff_t *offset)
+{
+	printk ("Writing to spi: ");
+    int result = copy_from_user(msg, user_space_buffer, count);
+	msg[count] = '\0';
+	printk("%s\n", msg);
+	
+	size_t len = strlen(msg);
+    if (*offset >= len){
+        return 0;
+    }
+    *offset += len;
+
+    return len;
+}
+
+// kernel interface
+
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("TAYYAB, ZAWAHER");
 MODULE_DEVICE_TABLE(of, matching_devices);
+module_init(spi_init);
+module_exit(spi_exit);
+
 
