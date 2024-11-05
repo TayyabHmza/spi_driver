@@ -26,24 +26,6 @@
 #define SPI_IE_R        0x70 // SPI interrupt enable
 #define SPI_IP_R        0x74 // SPI interrupt pending
 
-// SPI register offsets
-#define SPI_SCK_DIV_R   0x00 // Serial clock divisor
-#define SPI_SCK_MODE_R  0x04 // Serial clock mode
-#define SPI_CS_ID_R     0x10 // Chip select ID
-#define SPI_CS_DEF_R    0x14 // Chip select default
-#define SPI_CS_MODE_R   0x18 // Chip select mode
-#define SPI_DELAY_0_R   0x28 // Delay control 0
-#define SPI_DELAY_1_R   0x2C // Delay control 1
-#define SPI_FMT_R       0x40 // Frame format
-#define SPI_TXDATA_R    0x48 // Tx FIFO data
-#define SPI_RXDATA_R    0x4C // Rx FIFO data
-#define SPI_TX_MARK_R   0x50 // Tx FIFO watermark
-#define SPI_RX_MARK_R   0x54 // Rx FIFO watermark
-#define SPI_FCTRL_R     0x60 // SPI flash interface control
-#define SPI_FFMT_R      0x64 // SPI flash instruction format
-#define SPI_IE_R        0x70 // SPI interrupt enable
-#define SPI_IP_R        0x74 // SPI interrupt pending
-
 // Definations
 #define NO_ERROR        0
 #define ERROR           1
@@ -134,17 +116,9 @@ static void __exit spi_exit(void)
 
 static int spi_probe(struct platform_device *dev)
 {
-	
-    //struct spi_device_state *spi_device;
-	
-    //struct spi_device_state *spi_device;
-    
+    //struct spi_device_state *spi_device;    
     //spi_device.base_address =  devm_platform_ioremap_resource(dev, 0);
-    //spi_device.base_address =  devm_platform_ioremap_resource(dev, 0);
-    
     printk("Device connected at address: %x\n", BASEADDRESS);
-    printk("Device connected at address: %x\n", BASEADDRESS);
-
 	return NO_ERROR;
 }
 
@@ -178,16 +152,7 @@ static ssize_t driver_read (struct file *file_pointer,
 		pseudodevice_read_emulate();
 		msg_buffer[i] = (char) read_from_reg(BASEADDRESS + SPI_RXDATA_R);
 	} while (msg_buffer[i++] != '\0');
-	char msg_buffer[256];
-	int i=0;
-    int result;
-	
-	do {
-		pseudodevice_read_emulate();
-		msg_buffer[i] = (char) read_from_reg(BASEADDRESS + SPI_RXDATA_R);
-	} while (msg_buffer[i++] != '\0');
 
-	size_t len = strlen(msg_buffer);
 	size_t len = strlen(msg_buffer);
     if (*offset >= len){
         return 0;
@@ -195,10 +160,6 @@ static ssize_t driver_read (struct file *file_pointer,
     *offset += len;
 
     result = copy_to_user(user_space_buffer, msg_buffer, len);
-
-
-    result = copy_to_user(user_space_buffer, msg_buffer, len);
-
     return len;
 }
 
@@ -234,7 +195,6 @@ static ssize_t driver_write(struct file *file_pointer,
 // kernel interface
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("SALMAN, TAYYAB, ZAWAHER");
 MODULE_AUTHOR("SALMAN, TAYYAB, ZAWAHER");
 MODULE_DEVICE_TABLE(of, matching_devices);
 module_init(spi_init);
