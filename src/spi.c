@@ -26,11 +26,31 @@
 #define SPI_IE_R        0x70 // SPI interrupt enable
 #define SPI_IP_R        0x74 // SPI interrupt pending
 
+// Parameters
+#define MAX_NUM_CS 2
+
+// SPI register bit field values
+#define CLK_POLARITY_HIGH 				1
+#define CLK_POLARITY_LOW 				0
+#define CLK_PHASE_SAMPLE_LEAD_EDGE 		0
+#define CLK_PHASE_SAMPLE_TRAIL_EDGE 	1
+#define CS_HIGH_INACTIVE_STATE 			0
+#define CS_LOW_INACTIVE_STATE 			1
+#define CS_MODE_AUTO 				    00
+#define CS_MODE_HOLD 				    10
+#define CS_MODE_OFF 				    11
+#define PROTOCOL_SINGLE 				00
+#define MSB_ENDIANNESS 					0
+#define LSB_ENDIANNESS 					1
+#define INTERRUPT_TX 					0
+#define INTERRUPT_RX 					1
+
 // Definations
-#define NO_ERROR        0
-#define ERROR           1
-#define BASEADDRESS     pseudodevice
-#define BASEADDRESS     pseudodevice
+#define BASEADDRESS     		pseudodevice
+#define MSG_BUFFER_SIZE 		256
+
+#define NO_ERROR        		0
+#define ERROR           		1
 
 static int __init spi_init(void);
 static void __exit spi_exit(void);
@@ -45,6 +65,24 @@ static void write_to_reg(void __iomem *address, unsigned long data);
 
 struct spi_device_state {
     void __iomem *base_address;
+	ulong sck_div;
+	ulong cs_id;
+	char clk_polarity;
+	char clk_phase;
+	char cs_inactive_state;
+	char cs_mode;
+	short cs_sck_delay;
+	short sck_cs_delay;
+	short inter_cs_time;
+	short inter_frame_time;
+	char protocol;
+	char endianness;
+	char dir;
+	char len;
+	char tx_mark;
+	char rx_mark;
+	char rx_interrupt_en;
+	char tx_interrupt_en;
 };
 
 static const struct of_device_id matching_devices[] = {
@@ -103,9 +141,8 @@ static int __init spi_init(void)
         printk ("module_init : error\n");
         return ERROR;
     }
+	spi_probe(NULL); // Pseudodevice is connected.
 
-	spi_probe(NULL); // Pseudodevice is connected.
-	spi_probe(NULL); // Pseudodevice is connected.
   	return NO_ERROR;
 }
 
@@ -144,14 +181,14 @@ static ssize_t driver_read (struct file *file_pointer,
                     	 	size_t count,
                     	 	loff_t *offset)
 {
-	char msg_buffer[256];
+	char msg_buffer[MSG_BUFFER_SIZE];
 	int i=0;
     int result;
 	
 	do {
 		pseudodevice_read_emulate();
 		msg_buffer[i] = (char) read_from_reg(BASEADDRESS + SPI_RXDATA_R);
-	} while (msg_buffer[i++] != '\0');
+	} while (msg_buffer[i++] != '\0' && i < (MSG_BUFFER_SIZE-1));
 
 	size_t len = strlen(msg_buffer);
     if (*offset >= len){
@@ -170,13 +207,13 @@ static ssize_t driver_write(struct file *file_pointer,
 {
 	printk("Writing to spi: \n");
 
-	char msg_buffer[256];
+	char msg_buffer[MSG_BUFFER_SIZE];
 	int i=0;
     int result;
 
 	result = copy_from_user(msg_buffer, user_space_buffer, count);
 	
-	while (msg_buffer[i] != '\0') {
+	while (msg_buffer[i] != '\0' && i < MSG_BUFFER_SIZE) {
 		write_to_reg(BASEADDRESS + SPI_TXDATA_R, msg_buffer[i]);
 		pseudodevice_write_emulate();
 		i++;
@@ -188,7 +225,6 @@ static ssize_t driver_write(struct file *file_pointer,
     }
     *offset += len;
 
-    return count;
     return count;
 }
 
