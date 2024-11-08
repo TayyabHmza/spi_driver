@@ -56,7 +56,7 @@
 #define SPI_DATA						0x000000FF
 
 // Definations
-#define BASEADDRESS     		pseudodevice
+#define BASEADDRESS     		spi_device->base_address
 
 #define NO_ERROR        		0
 #define ERROR           		1
@@ -124,13 +124,6 @@ struct proc_ops config_proc_ops = {
     //.proc_read = config_read
     //.proc_write = 
 };
-
-// Pseudodevice ================================================
-
-// For testing, instead of writing to spi device registers, we can write to memory addresses.
-// 15 array elements for 15 registers. For offset of 4, 16*4.
-static long pseudodevice[16 * 4];
-// ===========================================================
 
 // Functions
 
