@@ -11,7 +11,7 @@ build/spi.ko: src/spi.c
 	@mv -t build .*.*.cmd src/.*.*.cmd *.order *.symvers src/*.mod src/*.mod.c src/*.o src/*.ko
 
 put: build/spi.ko
-	cp build/spi.ko   ~/buildroot-2024.02-rc1/output/target/media/
+	cp build/spi.ko   ~/buildroot-2021.08-rc1/output/target/media/
 
 $(LINUX_PATH)/scripts/module.lds: 
 	cp $(LINUX_PATH)/scripts/module.lds.S   $(LINUX_PATH)/scripts/module.lds

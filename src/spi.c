@@ -67,6 +67,8 @@ static int spi_probe(struct platform_device *dev);
 static int spi_remove(struct platform_device *dev);
 static ssize_t driver_read (struct file *file_pointer, char __user *user_space_buffer, size_t count, loff_t *offset);
 static ssize_t driver_write (struct file *file_pointer, const char *user_space_buffer, size_t count, loff_t *offset);
+static void device_write(void);
+static void device_read(void);
 static long read_from_reg(void __iomem *address);
 static void write_to_reg(void __iomem *address, unsigned long data);
 static irqreturn_t spi_interrupt_handler(int irq, void* spi_device);
@@ -150,6 +152,8 @@ static int spi_probe(struct platform_device *pdev)
 		Allocates resources for device, enables interrupts and initializes device.
 	*/
 
+	printk("SPI Probe\n");
+
 	// Allocate dynamic memory struct to store device info.
 	// This is freed automatically by kernel when device or driver is removed: no need to manually free.
 	spi_device = devm_kzalloc(&pdev->dev, sizeof(struct spi_device_state), GFP_KERNEL);
@@ -200,6 +204,7 @@ static int spi_probe(struct platform_device *pdev)
 	spi_device->tx_index = 0;
 	spi_device->user_rx_index = 0;
 	spi_device->user_tx_index = 0;
+	write_to_reg(BASEADDRESS+SPI_CS_ID_R, 1);
 
 	// Enable interrupts from device
 	write_to_reg(BASEADDRESS+SPI_IE_R, INTERRUPT_RX+INTERRUPT_TX);
@@ -235,6 +240,7 @@ static ssize_t driver_read (struct file *file_pointer,
 		Called when /proc/stz_spidriver file is read.
 		Transfers data from rx_data_buffer to file.
 	*/
+	printk("SPI driver_read\n");
 
 	char *msg_buffer = (spi_device->rx_data_buffer + spi_device->user_rx_index);
 	size_t len = strlen(msg_buffer);
@@ -255,10 +261,9 @@ static ssize_t driver_write(struct file *file_pointer,
 {
 	/*
 		Called when /proc/stz_spidriver file is written.
-		Transfers data from file to rx_data_buffer.
+		Transfers data from file to tx_data_buffer.
 	*/
-
-	printk("Writing to spi\n");
+	printk("SPI driver_write\n");
 
 	char *msg_buffer = (spi_device->tx_data_buffer + spi_device->user_tx_index);
 
@@ -285,8 +290,9 @@ static ssize_t driver_write(struct file *file_pointer,
 static void device_write(void)
 {
 	/*
-		Writes data from rx_data_buffer into spi rxdata fifo.
+		Writes data from tx_data_buffer into spi txdata fifo.
 	*/
+	printk("SPI device_write\n");
 
 	uint *i = &(spi_device->tx_index);
 
@@ -302,6 +308,10 @@ static void device_write(void)
 	if (spi_device->tx_data_buffer[*i] == '\0') {
 		spi_device->data_tx_available = 0;
 	}
+
+	// Enable tx interrupts
+	ulong interrupts_enables = read_from_reg(BASEADDRESS+SPI_IE_R);
+	write_to_reg(BASEADDRESS+SPI_IE_R, INTERRUPT_TX | interrupts_enables);
 }
 
 static void device_read(void) 
@@ -309,6 +319,7 @@ static void device_read(void)
 	/*
 		Reads data from spi rxdata fifo into rx_data_buffer.
 	*/
+	printk("SPI device_read\n");
 
 	uint *i = &(spi_device->rx_index);
 
@@ -331,6 +342,7 @@ static irqreturn_t spi_interrupt_handler(int irq, void* dev)
 		Calls device_read when data is available to be read.
 		Calls device_write when device can accept more data, and there is more data to write.
 	*/
+	printk("SPI interrupt\n");
 
 	// Get interrupt status
 	ulong interrupts_status, interrupts_enables;
