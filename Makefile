@@ -5,7 +5,7 @@ obj-m += src/spi.o
 # Path of linux src directory
 LINUX_PATH = /root/Build_linux/linux-6.1
 
-build/spi.ko: src/spi.c
+build/spi.ko: src/spi.c $(LINUX_PATH)/scripts/module.lds
 	make -C $(LINUX_PATH) M=$(PWD) ARCH=riscv CROSS_COMPILE=riscv32-unknown-linux-gnu- modules 
 	@mkdir -p build
 	@mv -t build .*.*.cmd src/.*.*.cmd *.order *.symvers src/*.mod src/*.mod.c src/*.o src/*.ko
