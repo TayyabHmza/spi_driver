@@ -73,8 +73,6 @@ static long read_from_reg(void __iomem *address);
 static void write_to_reg(void __iomem *address, unsigned long data);
 static irqreturn_t spi_interrupt_handler(int irq, void* spi_device);
 
-static void print_regs(void);
-
 // Structures
 
 struct spi_device_state {
@@ -97,6 +95,7 @@ struct spi_device_state {
 	char rx_watermark;
 	
 	char data_tx_available;
+	char data_rx_available;
 	uint rx_index;
 	uint tx_index;
 	uint user_rx_index;
@@ -173,13 +172,17 @@ static int spi_probe(struct platform_device *pdev)
 		return ERROR;
 	}
 
+	// Disable interrupts
+	write_to_reg(BASEADDRESS+SPI_IE_R, 0);
+
 	// Register device for interrupt
 	int irq = platform_get_irq(pdev, 0);
 	if (irq < 0) {
 		printk("SPI device: unable to get irq number.\n");
 		return ERROR;
 	}
-	int ret = devm_request_irq(&pdev->dev, irq, spi_interrupt_handler, 0, dev_name(&pdev->dev), spi_device);
+	//int ret = devm_request_irq(&pdev->dev, irq, spi_interrupt_handler, 0, dev_name(&pdev->dev), spi_device);
+	int ret = request_irq(irq, spi_interrupt_handler, 0, dev_name(&pdev->dev), &pdev->dev);
 	if (ret) {
 		printk("SPI device: unable to register for interrupt.\n");
 		return ERROR;
@@ -193,21 +196,17 @@ static int spi_probe(struct platform_device *pdev)
         return ERROR;
     }
 
-	static struct proc_dir_entry *spi_config_proc_node;
-	spi_config_proc_node = proc_create("stz_config", 0, NULL, &config_proc_ops);
-    if  (spi_config_proc_node == NULL){
-        printk ("module_init : error\n");
-        return ERROR;
-    }
-
 	// Initialize flags
 	spi_device->data_tx_available = 0;
+	spi_device->data_rx_available = 0;
 	spi_device->rx_index = 0;
 	spi_device->tx_index = 0;
 	spi_device->user_rx_index = 0;
 	spi_device->user_tx_index = 0;
 	write_to_reg(BASEADDRESS+SPI_CS_ID_R, 1);
 	write_to_reg(BASEADDRESS+SPI_TX_MARK_R, 1);
+	write_to_reg(BASEADDRESS+SPI_RX_MARK_R, 0);
+	write_to_reg(BASEADDRESS+SPI_IE_R, INTERRUPT_RX);
 
     printk("Device connected at address: %x\n", BASEADDRESS);
 	return NO_ERROR;
@@ -266,7 +265,6 @@ static ssize_t driver_write(struct file *file_pointer,
 	printk("SPI driver_write\n");
 
 	char *msg_buffer = (spi_device->tx_data_buffer + spi_device->user_tx_index);
-
 	int result = copy_from_user(msg_buffer, user_space_buffer, count);
 
 	size_t len = strlen(msg_buffer);
@@ -278,14 +276,10 @@ static ssize_t driver_write(struct file *file_pointer,
 
 	// Mark data as available
 	spi_device->data_tx_available = 1;
-
 	// Enable tx interrupts
 	// (If device is available to recieve more data, an interrupt will come and data will be sent.)
-	ulong interrupts_enables = read_from_reg(BASEADDRESS+SPI_IE_R);
-	write_to_reg(BASEADDRESS+SPI_IE_R, INTERRUPT_TX | interrupts_enables);
-
-	print_regs();
-
+	//write_to_reg(BASEADDRESS+SPI_IE_R, INTERRUPT_TX | INTERRUPT_RX);
+	spi_interrupt_handler(17, NULL);
     return count;
 }
 
@@ -312,8 +306,8 @@ static void device_write(void)
 	}
 
 	// Enable tx interrupts
-	ulong interrupts_enables = read_from_reg(BASEADDRESS+SPI_IE_R);
-	write_to_reg(BASEADDRESS+SPI_IE_R, INTERRUPT_TX | interrupts_enables);
+	//write_to_reg(BASEADDRESS+SPI_IE_R, INTERRUPT_TX | INTERRUPT_RX);
+	spi_interrupt_handler(17, NULL);
 }
 
 static void device_read(void) 
@@ -324,17 +318,20 @@ static void device_read(void)
 	printk("SPI device_read\n");
 
 	uint *i = &(spi_device->rx_index);
+	char empty_flag=0;
+	ulong data;
 
 	// Loop until fifo is empty.
 	do {
 		// Read character from RXDATA register
-		spi_device->rx_data_buffer[*i] = (char) read_from_reg(BASEADDRESS + SPI_RXDATA_R);
-
-	} while (read_from_reg(BASEADDRESS + SPI_RXDATA_R) & RX_FIFO_EMPTY);
+		data = read_from_reg(BASEADDRESS + SPI_RXDATA_R);
+		empty_flag = (data & RX_FIFO_EMPTY) ? 1 : 0;
+		spi_device->rx_data_buffer[*i] = (char) (data & SPI_DATA);
+		(*i)++;
+	} while (!empty_flag);
 
 	// Enable rx interrupts
-	ulong interrupts_enables = read_from_reg(BASEADDRESS+SPI_IE_R);
-	write_to_reg(BASEADDRESS+SPI_IE_R, INTERRUPT_RX | interrupts_enables);
+	//write_to_reg(BASEADDRESS+SPI_IE_R, INTERRUPT_RX);
 }
 
 static irqreturn_t spi_interrupt_handler(int irq, void* dev) 
@@ -351,35 +348,21 @@ static irqreturn_t spi_interrupt_handler(int irq, void* dev)
 	interrupts_status = read_from_reg(BASEADDRESS+SPI_IP_R);
 	interrupts_enables = read_from_reg(BASEADDRESS+SPI_IE_R);
 
+	write_to_reg(BASEADDRESS+SPI_IE_R, 0);								// disable interrupts
+
 	// Transmit actions
-	if (interrupts_status & INTERRUPT_TX) {												// when device is available to transmit
-		write_to_reg(BASEADDRESS+SPI_IE_R, interrupts_enables & ~INTERRUPT_TX);			// disable tx interrupts
-		if (spi_device->data_tx_available) {											// if there is more data to send
-			device_write();																// call write function
+	if (interrupts_status & INTERRUPT_TX) {								// when device is available to transmit
+		if (spi_device->data_tx_available) {							// if there is more data to send
+			device_write();												// call write function
 		}
 	}
 
 	// Recieve actions
-	if (interrupts_status & INTERRUPT_RX) {												// when device has data available to read
-		write_to_reg(BASEADDRESS+SPI_IE_R, interrupts_enables & ~INTERRUPT_RX);			// disable rx interrupts
-		device_read();																	// call read function
+	if (interrupts_status & INTERRUPT_RX) {								// when device has data available to read
+		device_read();													// call read function
 	}
-
+	
 	return IRQ_HANDLED;
-}
-
-static void print_regs(void)
-{
-	printk("\n Print spi regs\n");
-	printk("SPI_TXDATA_R: %x\n", read_from_reg(BASEADDRESS+SPI_TXDATA_R));
-	printk("SPI_RXDATA_R: %x\n", read_from_reg(BASEADDRESS+SPI_RXDATA_R));
-	printk("SPI_IE_R: %x\n", read_from_reg(BASEADDRESS+SPI_IE_R));
-	printk("SPI_IP_R: %x\n", read_from_reg(BASEADDRESS+SPI_IP_R));
-	printk("SPI_TX_MARK_R: %x\n", read_from_reg(BASEADDRESS+SPI_TX_MARK_R));
-	printk("SPI_RX_MARK_R: %x\n", read_from_reg(BASEADDRESS+SPI_RX_MARK_R));
-	printk("\n");
-	printk("tx_data_buffer: %s\n", spi_device->tx_data_buffer);
-
 }
 
 // kernel interface
