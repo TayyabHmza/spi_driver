@@ -220,7 +220,6 @@ static void device_write(void)
 
 		// Write character to TXDATA register
 		write_to_reg(BASEADDRESS + SPI_TXDATA_R, spi_device->tx_data_buffer[i]);
-		printk("\ntx_data_buffer: %c\n", spi_device->tx_data_buffer[i]);
 		i++;
 	}
 }
@@ -265,7 +264,6 @@ static void device_read(void)
 	while (!empty_flag && i<MAX_FIFO_DEPTH) {
 		// Read character from RXDATA register	
 		spi_device->rx_data_buffer[i] = (char) (data & SPI_DATA);
-		printk("\nrx_data_buffer: %c\n",spi_device->rx_data_buffer[i]);
 		data = read_from_reg(BASEADDRESS + SPI_RXDATA_R);
 		empty_flag = (data & RX_FIFO_EMPTY) ? 1 : 0;
 		i++;
