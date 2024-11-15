@@ -77,22 +77,6 @@ static irqreturn_t spi_interrupt_handler(int irq, void* spi_device);
 
 struct spi_device_state {
     void __iomem *base_address;
-
-	ulong sck_div;
-	short cs_sck_delay;
-	short sck_cs_delay;
-	short inter_cs_time;
-	short inter_frame_time;
-	char clk_polarity;
-	char clk_phase;
-	char cs_inactive_state;
-	char cs_mode;
-	char protocol;
-	char endianness;
-	char direction;
-	char length;
-	char tx_watermark;
-	char rx_watermark;
 	
 	char data_tx_available;
 	char data_rx_available;
@@ -121,11 +105,6 @@ static struct platform_driver spi_driver = {
 struct proc_ops driver_proc_ops = {
     .proc_read = driver_read,
     .proc_write = driver_write
-};
-
-struct proc_ops config_proc_ops = {
-    //.proc_read = config_read
-    //.proc_write = 
 };
 
 // Functions
@@ -297,6 +276,7 @@ static void device_write(void)
 
 		// Write character to TXDATA register
 		write_to_reg(BASEADDRESS + SPI_TXDATA_R, spi_device->tx_data_buffer[*i]);
+		printk("\ntx_data_buffer: %c\n",spi_device->tx_data_buffer[*i]);
 		(*i)++;
 	}
 
@@ -321,14 +301,17 @@ static void device_read(void)
 	char empty_flag=0;
 	ulong data;
 
-	// Loop until fifo is empty.
-	do {
-		// Read character from RXDATA register
+	// Read data, loop until fifo is empty.
+	data = read_from_reg(BASEADDRESS + SPI_RXDATA_R);
+	empty_flag = (data & RX_FIFO_EMPTY) ? 1 : 0;
+	while (!empty_flag) {
+		// Read character from RXDATA register	
+		spi_device->rx_data_buffer[*i] = (char) (data & SPI_DATA);
+		printk("\nrx_data_buffer: %c\n",spi_device->rx_data_buffer[*i]);
 		data = read_from_reg(BASEADDRESS + SPI_RXDATA_R);
 		empty_flag = (data & RX_FIFO_EMPTY) ? 1 : 0;
-		spi_device->rx_data_buffer[*i] = (char) (data & SPI_DATA);
 		(*i)++;
-	} while (!empty_flag);
+	}
 
 	// Enable rx interrupts
 	//write_to_reg(BASEADDRESS+SPI_IE_R, INTERRUPT_RX);
