@@ -2,17 +2,19 @@
 # Object file of driver (kernel loadable module)
 obj-m = src/spi.o  src/spi_nointerrupt.o
 
-# Path of linux src directory
+# Path of buildroot and linux src directories
 LINUX_PATH = ADD_PATH_HERE_TO_BUILDROOT_FOLDER
 BUILDROOT_PATH = ADD_PATH_HERE_TO_LINUX_FOLDER
 
 line_number = $(shell grep -n "if SPI_MASTER" $(LINUX_PATH)/drivers/spi/Kconfig | cut -d: -f1 | head -n 1)
 
+# Target to build kernel module
 build/spi.ko build/spi_nointerrupt.ko: src/spi.c src/spi_nointerrupt.c $(LINUX_PATH)/scripts/module.lds
 	make -C $(LINUX_PATH) M=$(PWD) ARCH=riscv CROSS_COMPILE=riscv32-unknown-linux-gnu- modules 
 	@mkdir -p build
 	@mv -t build .*.*.cmd src/.*.*.cmd *.order *.symvers src/*.mod src/*.mod.c src/*.o src/*.ko
 
+# Target to install kernel modules in buildroot
 put: build/spi.ko build/spi_nointerrupt.ko
 	cp build/spi.ko $(BUILDROOT_PATH)/output/target/media/
 	cp build/spi_nointerrupt.ko $(BUILDROOT_PATH)/output/target/media/
@@ -36,6 +38,7 @@ put: build/spi.ko build/spi_nointerrupt.ko
 	@echo ""
 	@echo "Manually update the Linux config to install the SPI Driver. Go to Menuconfig > Device Drivers > SPI > SELECT ONE."
 
+# Traget to create loader script in linux dir
 $(LINUX_PATH)/scripts/module.lds: 
 	cp $(LINUX_PATH)/scripts/module.lds.S   $(LINUX_PATH)/scripts/module.lds
 	echo "SECTIONS {.plt : { BYTE(0) } 
@@ -43,6 +46,7 @@ $(LINUX_PATH)/scripts/module.lds:
         .got.plt : { BYTE(0) } 
 	}" >> $(LINUX_PATH)/scripts/module.lds
 
+# Target to clean
 clean:
 	rm -rf build
 	make -C $(LINUX_PATH) M=$(PWD) clean

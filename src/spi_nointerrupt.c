@@ -33,7 +33,7 @@
 
 // Parameters
 #define MAX_NUM_CS 				2
-#define MAX_FIFO_DEPTH			8
+#define MSG_BUFFER_SIZE			256
 
 // SPI register bit fields
 #define CLK_POLARITY_HIGH 				1
@@ -56,7 +56,7 @@
 
 // Definations
 #define BASEADDRESS     		spi_device->base_address
-
+#define EOT						'\0'		// end of transmission char
 #define NO_ERROR        		0
 #define ERROR           		1
 
@@ -70,14 +70,13 @@ static void device_write(void);
 static void device_read(void);
 static long read_from_reg(void __iomem *address);
 static void write_to_reg(void __iomem *address, unsigned long data);
-static irqreturn_t spi_interrupt_handler(int irq, void* spi_device);
 
 // Structures
 
 struct spi_device_state {
     void __iomem *base_address;
-	char rx_data_buffer[MAX_FIFO_DEPTH+1];
-	char tx_data_buffer[MAX_FIFO_DEPTH+1];
+	char rx_data_buffer[MSG_BUFFER_SIZE+1];
+	char tx_data_buffer[MSG_BUFFER_SIZE+1];
 };
 
 static const struct of_device_id matching_devices[] = {
@@ -156,8 +155,8 @@ static int spi_probe(struct platform_device *pdev)
 	write_to_reg(BASEADDRESS+SPI_RX_MARK_R, 0);
 	write_to_reg(BASEADDRESS+SPI_IE_R, 0);
 
-	spi_device->rx_data_buffer[MAX_FIFO_DEPTH] = '\0';
-	spi_device->tx_data_buffer[MAX_FIFO_DEPTH] = '\0';
+	spi_device->rx_data_buffer[MSG_BUFFER_SIZE] = EOT;
+	spi_device->tx_data_buffer[MSG_BUFFER_SIZE] = EOT;
 
     printk("Device connected at address: %x\n", BASEADDRESS);
 	return NO_ERROR;
@@ -191,11 +190,15 @@ static ssize_t driver_write(struct file *file_pointer,
 	*/
 	printk("SPI driver_write\n");
 
-	char *msg_buffer = spi_device->tx_data_buffer;
-	int result = copy_from_user(msg_buffer, user_space_buffer, count);
+	if (count-1 > MSG_BUFFER_SIZE) {
+		printk("Maximum data size is %d.\n", MSG_BUFFER_SIZE);
+		return 0;
+	}
 
-	size_t len = strlen(msg_buffer);
+	int result = copy_from_user(spi_device->tx_data_buffer, user_space_buffer, count);
+	spi_device->tx_data_buffer[count-1] = EOT;
 
+	size_t len = strlen(spi_device->tx_data_buffer);
     if (*offset >= len){
         return 0;
     }
@@ -216,10 +219,15 @@ static void device_write(void)
 	uint i = 0;
 
 	// Loop until fifo is full, or end of message.
-	while ( !(read_from_reg(BASEADDRESS + SPI_TXDATA_R) & TX_FIFO_FULL) && (spi_device->tx_data_buffer[i] != '\0') ) {
+	while ( !(read_from_reg(BASEADDRESS + SPI_TXDATA_R) & TX_FIFO_FULL) ) {
 
 		// Write character to TXDATA register
 		write_to_reg(BASEADDRESS + SPI_TXDATA_R, spi_device->tx_data_buffer[i]);
+		
+		if (spi_device->tx_data_buffer[i] == EOT) {
+			break ;
+		}
+		//printk("\ntx_data_buffer: %d\n", spi_device->tx_data_buffer[i]);
 		i++;
 	}
 }
@@ -261,9 +269,10 @@ static void device_read(void)
 	// Read data, loop until fifo is empty.
 	data = read_from_reg(BASEADDRESS + SPI_RXDATA_R);
 	empty_flag = (data & RX_FIFO_EMPTY) ? 1 : 0;
-	while (!empty_flag && i<MAX_FIFO_DEPTH) {
+	while (!empty_flag) {
 		// Read character from RXDATA register	
 		spi_device->rx_data_buffer[i] = (char) (data & SPI_DATA);
+		//printk("\nrx_data_buffer: %c\n",spi_device->rx_data_buffer[i]);
 		data = read_from_reg(BASEADDRESS + SPI_RXDATA_R);
 		empty_flag = (data & RX_FIFO_EMPTY) ? 1 : 0;
 		i++;
