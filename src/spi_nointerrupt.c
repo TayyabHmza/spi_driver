@@ -1,17 +1,9 @@
 
 // SPI driver without interrupts
 
-#include <linux/clk.h>
-#include <linux/module.h>
-#include <linux/interrupt.h>
-#include <linux/of.h>
 #include <linux/platform_device.h>
 #include <linux/spi/spi.h>
-#include <linux/io.h>
-#include <linux/log2.h>
 #include <linux/proc_fs.h>
-#include <linux/device.h>
-#include <linux/kdev_t.h>
 
 // SPI register offsets
 #define SPI_SCK_DIV_R   0x00 // Serial clock divisor
@@ -32,8 +24,7 @@
 #define SPI_IP_R        0x74 // SPI interrupt pending
 
 // Parameters
-#define MAX_NUM_CS 				2
-#define MSG_BUFFER_SIZE			256
+#define MSG_BUFFER_SIZE					256
 
 // SPI register bit fields
 #define CLK_POLARITY_HIGH 				1
@@ -48,17 +39,15 @@
 #define PROTOCOL_SINGLE 				00
 #define MSB_ENDIANNESS 					0
 #define LSB_ENDIANNESS 					1
-#define INTERRUPT_TX 					01
-#define INTERRUPT_RX 					10
-#define TX_FIFO_FULL					(1<<31)
-#define RX_FIFO_EMPTY					(1<<31)
+#define TX_FIFO_FULL					0x80000000
+#define RX_FIFO_EMPTY					0x80000000
 #define SPI_DATA						0x000000FF
 
 // Definations
-#define BASEADDRESS     		spi_device->base_address
-#define EOT						'\0'		// end of transmission char
-#define NO_ERROR        		0
-#define ERROR           		1
+#define BASEADDRESS     				spi_device->base_address
+#define EOT								'\0'		// end of transmission char
+#define NO_ERROR        				0
+#define ERROR           				1
 
 static int __init spi_init(void);
 static void __exit spi_exit(void);
@@ -102,7 +91,7 @@ struct proc_ops driver_proc_ops = {
 
 static int __init spi_init(void)
 {
-	printk("Hello, world!\n");
+	printk("SPI driver loaded.\n");
 	platform_driver_register(&spi_driver);
   	return NO_ERROR;
 }
@@ -110,7 +99,7 @@ static int __init spi_init(void)
 static void __exit spi_exit(void)
 {
 	platform_driver_unregister(&spi_driver);
-	printk(KERN_INFO "Goodbye, world!\n");
+	printk(KERN_INFO "SPI driver removed.\n");
 }
 
 static struct spi_device_state *spi_device;
@@ -120,8 +109,6 @@ static int spi_probe(struct platform_device *pdev)
 		Called when device is registered with driver.
 		Allocates resources for device, enables interrupts and initializes device.
 	*/
-
-	printk("SPI Probe\n");
 
 	// Allocate dynamic memory struct to store device info.
 	// This is freed automatically by kernel when device or driver is removed: no need to manually free.
@@ -158,13 +145,13 @@ static int spi_probe(struct platform_device *pdev)
 	spi_device->rx_data_buffer[MSG_BUFFER_SIZE] = EOT;
 	spi_device->tx_data_buffer[MSG_BUFFER_SIZE] = EOT;
 
-    printk("Device connected at address: %x\n", BASEADDRESS);
+    printk("SPI probe: Device connected at address: %x\n", BASEADDRESS);
 	return NO_ERROR;
 }
 
 static int spi_remove(struct platform_device *pdev)
 {
-    printk("Device removed.\n");
+    printk("SPI device removed.\n");
 	return NO_ERROR;
 }
 
@@ -188,10 +175,10 @@ static ssize_t driver_write(struct file *file_pointer,
 		Called when /proc/stz_spidriver file is written.
 		Transfers data from file to tx_data_buffer.
 	*/
-	printk("SPI driver_write\n");
+	// printk("SPI driver_write\n");
 
 	if (count-1 > MSG_BUFFER_SIZE) {
-		printk("Maximum data size is %d.\n", MSG_BUFFER_SIZE);
+		printk("Maximum data length allowed is %d.\n", MSG_BUFFER_SIZE);
 		return 0;
 	}
 
@@ -214,7 +201,7 @@ static void device_write(void)
 	/*
 		Writes data from tx_data_buffer into spi txdata fifo.
 	*/
-	printk("SPI device_write\n");
+	// printk("SPI device_write\n");
 
 	uint i = 0;
 
@@ -241,7 +228,7 @@ static ssize_t driver_read (struct file *file_pointer,
 		Called when /proc/stz_spidriver file is read.
 		Transfers data from rx_data_buffer to file.
 	*/
-	printk("SPI driver_read\n");
+	// printk("SPI driver_read\n");
 	device_read();
 
 	char *msg_buffer = spi_device->rx_data_buffer;
@@ -260,7 +247,7 @@ static void device_read(void)
 	/*
 		Reads data from spi rxdata fifo into rx_data_buffer.
 	*/
-	printk("SPI device_read\n");
+	// printk("SPI device_read\n");
 
 	uint i = 0;
 	char empty_flag=0;
