@@ -1,0 +1,10 @@
+config SPI_STZ_INTERRUPT
+	tristate "Salman-Tayyab-Zawaher's SiFive SPI Driver with Interrupts"
+	help
+		SPI Driver with interrupt
+	 
+config SPI_STZ_NOINTERRUPT
+	tristate "Salman-Tayyab-Zawaher's SiFive SPI Driver without Interrupts"
+	help
+		SPI Driver without interrupt
+			 

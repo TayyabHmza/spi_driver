@@ -3,7 +3,10 @@
 obj-m = src/spi.o  src/spi_nointerrupt.o
 
 # Path of linux src directory
-LINUX_PATH = /root/Build_linux/linux-6.1
+LINUX_PATH = ADD_PATH_HERE_TO_BUILDROOT_FOLDER
+BUILDROOT_PATH = ADD_PATH_HERE_TO_LINUX_FOLDER
+
+line_number = $(shell grep -n "if SPI_MASTER" $(LINUX_PATH)/drivers/spi/Kconfig | cut -d: -f1 | head -n 1)
 
 build/spi.ko build/spi_nointerrupt.ko: src/spi.c src/spi_nointerrupt.c $(LINUX_PATH)/scripts/module.lds
 	make -C $(LINUX_PATH) M=$(PWD) ARCH=riscv CROSS_COMPILE=riscv32-unknown-linux-gnu- modules 
@@ -11,8 +14,27 @@ build/spi.ko build/spi_nointerrupt.ko: src/spi.c src/spi_nointerrupt.c $(LINUX_P
 	@mv -t build .*.*.cmd src/.*.*.cmd *.order *.symvers src/*.mod src/*.mod.c src/*.o src/*.ko
 
 put: build/spi.ko build/spi_nointerrupt.ko
-	cp build/spi.ko   ~/buildroot-2021.08-rc1/output/target/media/
-	cp build/spi_nointerrupt.ko   ~/buildroot-2021.08-rc1/output/target/media/
+	cp build/spi.ko $(BUILDROOT_PATH)/output/target/media/
+	cp build/spi_nointerrupt.ko $(BUILDROOT_PATH)/output/target/media/
+	cp src/spi.c $(LINUX_PATH)/drivers/spi/spi-stz-interrupt.c
+	cp src/spi_nointerrupt.c $(LINUX_PATH)/drivers/spi/spi-stz-nointerrupt.c
+	@if grep -q "spi-stz-interrupt.o" $(LINUX_PATH)/drivers/spi/Makefile; then \
+		echo "Nothing to be updated to configure SPI on Linux."; \
+	else \
+		head -n "$(line_number)" $(LINUX_PATH)/drivers/spi/Kconfig > new_file.txt; \
+		cat make_txt.txt >> new_file.txt; \
+		tail -n +$$(($(line_number) + 1)) $(LINUX_PATH)/drivers/spi/Kconfig >> new_file.txt; \
+		mv new_file.txt $(LINUX_PATH)/drivers/spi/Kconfig; \
+		echo "Updated Kconfig file"; \
+		echo "obj-\$$(CONFIG_SPI_STZ_INTERRUPT)         += spi-stz-interrupt.o" >> $(LINUX_PATH)/drivers/spi/Makefile; \
+		echo "obj-\$$(CONFIG_SPI_STZ_NOINTERRUPT)       += spi-stz-nointerrupt.o" >> $(LINUX_PATH)/drivers/spi/Makefile; \
+		echo "Updated SPI Driver's Makefile"; \
+		echo "CONFIG_SPI_STZ_INTERRUPT=y" >> $(LINUX_PATH)/arch/riscv/configs/defconfig; \
+		echo "CONFIG_SPI_STZ_NOINTERRUPT=y" >> $(LINUX_PATH)/arch/riscv/configs/defconfig; \
+		echo "Created an entry in riscv defconfig."; \
+	fi
+	@echo ""
+	@echo "Manually update the Linux config to install the SPI Driver. Go to Menuconfig > Device Drivers > SPI > SELECT ONE."
 
 $(LINUX_PATH)/scripts/module.lds: 
 	cp $(LINUX_PATH)/scripts/module.lds.S   $(LINUX_PATH)/scripts/module.lds
