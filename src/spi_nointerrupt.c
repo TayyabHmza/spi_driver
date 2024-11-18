@@ -148,7 +148,7 @@ static int spi_probe(struct platform_device *pdev)
 
 	// Setup proc dirs
 	static struct proc_dir_entry *spi_proc_node;
-	spi_proc_node = proc_create("spi", 0, NULL, &driver_proc_ops);
+	spi_proc_node = proc_create("stz_spidriver", 0, NULL, &driver_proc_ops);
     if  (spi_proc_node == NULL) {
         printk ("SPI device: device file error.\n");
         return ERROR;
@@ -223,6 +223,7 @@ static int driver_close(struct inode *inode, struct file *file_ptr) {
 	/*
 		Called when /dev files are accessed (closed)
 	*/
+	write_to_reg(BASEADDRESS+SPI_CS_ID_R, 1);
 	return 0;
 }
 
