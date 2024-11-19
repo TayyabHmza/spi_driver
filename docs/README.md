@@ -26,4 +26,4 @@ To send/recieve data over spi, write/read data to one of the device files.
 When reading device file, driver returns only the data present in the hardware fifo. Any data recieved after fifo is full is lost.
 ## Documentation 
 The description of the functions and the structures written the spi_diver code is given below:\
-[SPI_DRIVER](./spi_driver/docs/SPI_Driver.pdf)
+[SPI_DRIVER](https://github.com/TayyabHmza/spi_driver/blob/main/docs/SPI_Driver.pdf)
