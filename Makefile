@@ -3,25 +3,25 @@
 obj-m = src/spi.o  src/spi_nointerrupt.o
 
 # Path of buildroot and linux src directories
-LINUX_PATH = ADD_PATH_HERE_TO_BUILDROOT_FOLDER
-BUILDROOT_PATH = ADD_PATH_HERE_TO_LINUX_FOLDER
+#LINUX_PATH = ADD_PATH_HERE_TO_LINUX_FOLDER
+LINUX_PATH = ~/Build_linux/linux-6.1
 
 line_number = $(shell grep -n "if SPI_MASTER" $(LINUX_PATH)/drivers/spi/Kconfig | cut -d: -f1 | head -n 1)
 
 # Target to build kernel module
+.PHONY: build
+build: build/spi.ko build/spi_nointerrupt.ko
 build/spi.ko build/spi_nointerrupt.ko: src/spi.c src/spi_nointerrupt.c $(LINUX_PATH)/scripts/module.lds
 	make -C $(LINUX_PATH) M=$(PWD) ARCH=riscv CROSS_COMPILE=riscv32-unknown-linux-gnu- modules 
 	@mkdir -p build
 	@mv -t build .*.*.cmd src/.*.*.cmd *.order *.symvers src/*.mod src/*.mod.c src/*.o src/*.ko
 
-# Target to install kernel modules in buildroot
-put: build/spi.ko build/spi_nointerrupt.ko
-	cp build/spi.ko $(BUILDROOT_PATH)/output/target/media/
-	cp build/spi_nointerrupt.ko $(BUILDROOT_PATH)/output/target/media/
+# Target to install kernel modules in kernel
+install: src/spi.c src/spi_nointerrupt.c $(LINUX_PATH)/scripts/module.lds
 	cp src/spi.c $(LINUX_PATH)/drivers/spi/spi-stz-interrupt.c
 	cp src/spi_nointerrupt.c $(LINUX_PATH)/drivers/spi/spi-stz-nointerrupt.c
 	@if grep -q "spi-stz-interrupt.o" $(LINUX_PATH)/drivers/spi/Makefile; then \
-		echo "Nothing to be updated to configure SPI on Linux."; \
+		echo "SPI already configured on Linux."; \
 	else \
 		head -n "$(line_number)" $(LINUX_PATH)/drivers/spi/Kconfig > new_file.txt; \
 		cat make_txt.txt >> new_file.txt; \

@@ -1,6 +1,7 @@
 
 // SPI driver without interrupts
 
+#include <linux/module.h>
 #include <linux/device.h>
 #include <linux/kdev_t.h>
 #include <linux/platform_device.h>
@@ -68,15 +69,16 @@ static void write_to_reg(void __iomem *address, unsigned long data);
 
 // Structures
 
-static struct class *dev_class;
-
 struct spi_device_state {
 	dev_t major_no;
 	struct cdev cdev;
+	struct class *dev_class;
     void __iomem *base_address;
 	char rx_data_buffer[MSG_BUFFER_SIZE+1];
 	char tx_data_buffer[MSG_BUFFER_SIZE+1];
 };
+
+static struct spi_device_state *spi_device;
 
 static const struct of_device_id matching_devices[] = {
 	{ .compatible = "sifive,spi0", },
@@ -120,7 +122,6 @@ static void spi_exit(void)
 	printk(KERN_INFO "SPI driver removed.\n");
 }
 
-static struct spi_device_state *spi_device;
 static int spi_probe(struct platform_device *pdev)
 {
 	/*
@@ -156,9 +157,9 @@ static int spi_probe(struct platform_device *pdev)
 	
 	// Setup dev dirs
 	alloc_chrdev_region(&spi_device->major_no, 0, 2, "spi");				// allocate device major num and two minor nums (0,1) for two CS lines
-	dev_class = class_create(THIS_MODULE, "spi");							// create device file in /dev/class
-	device_create(dev_class, NULL, spi_device->major_no, NULL, "spi0");		// create two files /dev/spi0 and /dev/spi1 for the two CS lines
-	device_create(dev_class, NULL, MKDEV(MAJOR(spi_device->major_no), MINOR(spi_device->major_no) + 1), NULL, "spi1");
+	spi_device->dev_class = class_create(THIS_MODULE, "spi");							// create device file in /dev/class
+	device_create(spi_device->dev_class, NULL, spi_device->major_no, NULL, "spi0");		// create two files /dev/spi0 and /dev/spi1 for the two CS lines
+	device_create(spi_device->dev_class, NULL, MKDEV(MAJOR(spi_device->major_no), MINOR(spi_device->major_no) + 1), NULL, "spi1");
 
 																	// initialize spi as a character device by setting struct cdev
 	cdev_init(&(spi_device->cdev), &driver_dev_ops);				// register file operations
@@ -182,8 +183,8 @@ static int spi_remove(struct platform_device *pdev)
 		Called when device is disconnected.
 		Deletes device files.
 	*/
-	device_destroy(dev_class, spi_device->major_no);
-	class_destroy(dev_class);
+	device_destroy(spi_device->dev_class, spi_device->major_no);
+	class_destroy(spi_device->dev_class);
 	unregister_chrdev_region(spi_device->major_no, 2);
 	cdev_del(&(spi_device->cdev));
 
@@ -236,10 +237,14 @@ static ssize_t driver_write(struct file *file_pointer,
 		Called when /proc/spi file is written.
 		Transfers data from file to tx_data_buffer.
 	*/
-	// printk("SPI driver_write\n");
+	//  printk("SPI driver_write\n");
 
 	if (count-1 > MSG_BUFFER_SIZE) {
 		printk("Maximum data length allowed is %d.\n", MSG_BUFFER_SIZE);
+		return 0;
+	}
+	// Ignore empty data
+	if (count <= 1) {
 		return 0;
 	}
 
@@ -292,14 +297,13 @@ static ssize_t driver_read (struct file *file_pointer,
 	// printk("SPI driver_read\n");
 	device_read();
 
-	char *msg_buffer = spi_device->rx_data_buffer;
-	size_t len = strlen(msg_buffer);
+	size_t len = strlen(spi_device->rx_data_buffer);
     if (*offset >= len){
         return 0;
     }
     *offset += len;
 
-    int result = copy_to_user(user_space_buffer, msg_buffer, len);
+    copy_to_user(user_space_buffer, spi_device->rx_data_buffer, len);
     return len;
 }
 
