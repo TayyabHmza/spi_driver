@@ -245,7 +245,7 @@ static ssize_t driver_write(struct file *file_pointer,
 	}
 	// Ignore empty data
 	if (count <= 1) {
-		return 0;
+		return 1;
 	}
 
 	int result = copy_from_user(spi_device->tx_data_buffer, user_space_buffer, count);
@@ -304,6 +304,7 @@ static ssize_t driver_read (struct file *file_pointer,
     *offset += len;
 
     copy_to_user(user_space_buffer, spi_device->rx_data_buffer, len);
+	spi_device->rx_data_buffer[0] = EOT;
     return len;
 }
 
