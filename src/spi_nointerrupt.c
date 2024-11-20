@@ -283,11 +283,11 @@ static void device_write(void)
 
 		// Write character to TXDATA register
 		write_to_reg(BASEADDRESS + SPI_TXDATA_R, spi_device->tx_data_buffer[i]);
+		// printk("\ntx_data_buffer: %c: %d\n", spi_device->tx_data_buffer[i], spi_device->tx_data_buffer[i]);
 		
 		if (spi_device->tx_data_buffer[i] == EOT) {
 			break ;
 		}
-		//printk("\ntx_data_buffer: %d\n", spi_device->tx_data_buffer[i]);
 		i++;
 	}
 }
@@ -305,13 +305,10 @@ static ssize_t driver_read (struct file *file_pointer,
 	device_read();
 
 	size_t len = strlen(spi_device->rx_data_buffer);
-    if (*offset >= len){
-        return 0;
-    }
     *offset += len;
 
     copy_to_user(user_space_buffer, spi_device->rx_data_buffer, len);
-	spi_device->rx_data_buffer[0] = EOT;
+
     return len;
 }
 
