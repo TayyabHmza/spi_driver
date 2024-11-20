@@ -16,7 +16,7 @@ build/spi.ko build/spi_nointerrupt.ko: src/spi.c src/spi_nointerrupt.c $(LINUX_P
 	@mv -t build .*.*.cmd src/.*.*.cmd *.order *.symvers src/*.mod src/*.mod.c src/*.o src/*.ko
 
 # Target to install kernel modules in kernel
-install: src/spi.c src/spi_nointerrupt.c $(LINUX_PATH)/scripts/module.lds
+install: build/spi.ko build/spi_nointerrupt.ko
 	cp src/spi.c $(LINUX_PATH)/drivers/spi/spi-stz-interrupt.c
 	cp src/spi_nointerrupt.c $(LINUX_PATH)/drivers/spi/spi-stz-nointerrupt.c
 	@if grep -q "spi-stz-interrupt.o" $(LINUX_PATH)/drivers/spi/Makefile; then \
