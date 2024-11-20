@@ -323,20 +323,21 @@ static void device_read(void)
 	// printk("SPI device_read\n");
 
 	uint i = 0;
-	char empty_flag = 0;
+	char end_flag = 0;
 	ulong data;
 
-	// Read data, loop until fifo is empty.
+	// Read data, loop until fifo is empty or a end of transmission char.
 	data = read_from_reg(BASEADDRESS + SPI_RXDATA_R);
-	empty_flag = (data & RX_FIFO_EMPTY) ? 1 : 0;
-	while (!empty_flag) {
+	end_flag = (data & RX_FIFO_EMPTY) || ((data & SPI_DATA) == EOT);
+	while (!end_flag) {
 		// Read character from RXDATA register	
 		spi_device->rx_data_buffer[i] = (char) (data & SPI_DATA);
-		//printk("\nrx_data_buffer: %c\n",spi_device->rx_data_buffer[i]);
+		// printk("\nrx_data_buffer: %c: %d\n", spi_device->rx_data_buffer[i], spi_device->rx_data_buffer[i]);
 		data = read_from_reg(BASEADDRESS + SPI_RXDATA_R);
-		empty_flag = (data & RX_FIFO_EMPTY) ? 1 : 0;
+		end_flag = (data & RX_FIFO_EMPTY) || ((data & SPI_DATA) == EOT);
 		i++;
 	}
+	spi_device->rx_data_buffer[i] = EOT;
 }
 
 // kernel interface
