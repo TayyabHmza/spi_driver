@@ -3,6 +3,10 @@
 See SiFive datasheet for information about the spi module:\
 https://static.dev.sifive.com/SiFive-FE310-G000-manual-v2p0.pdf#chapter.18
 
+There are two versions of the driver:
+spi_nointerrupt.c: works without interrupts, current version.
+spi.c: works with interrupts, to be updated.
+
 ### Build
 - Set path of Linux kernel source top directory in Makefile
 

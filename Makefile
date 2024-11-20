@@ -3,7 +3,7 @@
 obj-m = src/spi.o  src/spi_nointerrupt.o
 
 # Path of buildroot and linux src directories
-#LINUX_PATH = ADD_PATH_HERE_TO_LINUX_FOLDER
+LINUX_PATH = #ADD_PATH_HERE_TO_LINUX_FOLDER
 
 line_number = $(shell grep -n "if SPI_MASTER" $(LINUX_PATH)/drivers/spi/Kconfig | cut -d: -f1 | head -n 1)
 

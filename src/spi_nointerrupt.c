@@ -156,7 +156,7 @@ static int spi_probe(struct platform_device *pdev)
     }
 	
 	// Setup dev dirs
-	alloc_chrdev_region(&spi_device->major_no, 0, 2, "spi");				// allocate device major num and two minor nums (0,1) for two CS lines
+	alloc_chrdev_region(&spi_device->major_no, 0, 2, "spi");							// allocate device major num and two minor nums (0,1) for two CS lines
 	spi_device->dev_class = class_create(THIS_MODULE, "spi");							// create device file in /dev/class
 	device_create(spi_device->dev_class, NULL, spi_device->major_no, NULL, "spi0");		// create two files /dev/spi0 and /dev/spi1 for the two CS lines
 	device_create(spi_device->dev_class, NULL, MKDEV(MAJOR(spi_device->major_no), MINOR(spi_device->major_no) + 1), NULL, "spi1");
@@ -248,7 +248,7 @@ static ssize_t driver_write(struct file *file_pointer,
 		return 1;
 	}
 
-	int result = copy_from_user(spi_device->tx_data_buffer, user_space_buffer, count);
+	copy_from_user(spi_device->tx_data_buffer, user_space_buffer, count);
 	spi_device->tx_data_buffer[count-1] = EOT;
 
 	size_t len = strlen(spi_device->tx_data_buffer);
@@ -316,7 +316,7 @@ static void device_read(void)
 	// printk("SPI device_read\n");
 
 	uint i = 0;
-	char empty_flag=0;
+	char empty_flag = 0;
 	ulong data;
 
 	// Read data, loop until fifo is empty.
