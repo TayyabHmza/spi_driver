@@ -54,6 +54,7 @@
 #define NO_ERROR        				0
 #define ERROR           				1
 
+// Function definations
 static int __init spi_init(void);
 static void spi_exit(void);
 static int spi_probe(struct platform_device *pdev);
@@ -111,6 +112,9 @@ struct file_operations driver_dev_ops = {
 
 static int __init spi_init(void)
 {
+	/*
+		Called when driver is loaded into kernel.
+	*/
 	printk("SPI driver loaded.\n");
 	platform_driver_register(&spi_driver);
   	return NO_ERROR;
@@ -118,6 +122,9 @@ static int __init spi_init(void)
 
 static void spi_exit(void)
 {
+	/*
+		Called when driver is unloaded from kernel.
+	*/
 	platform_driver_unregister(&spi_driver);
 	printk(KERN_INFO "SPI driver removed.\n");
 }
