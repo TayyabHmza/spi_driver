@@ -28,3 +28,6 @@ To send/recieve data over spi, write/read data to one of the device files.
 256 bytes (chars) of data can be sent at a time; this is set by `MSG_BUFFER_SIZE` in driver source. Attempting to send more data than this results in an error.
 
 When reading device file, driver returns only the data present in the hardware fifo. Any data recieved after fifo is full is lost.
+## Documentation 
+The description of the functions and the structures written the spi_diver code is given below:\
+[SPI_DRIVER](https://github.com/TayyabHmza/spi_driver/blob/main/docs/SPI_Driver.pdf)
