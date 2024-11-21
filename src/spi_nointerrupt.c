@@ -28,7 +28,7 @@
 #define SPI_IE_R        0x70 // SPI interrupt enable
 #define SPI_IP_R        0x74 // SPI interrupt pending
 
-// Parameters
+// Parameters/
 #define MSG_BUFFER_SIZE					256
 
 // SPI register bit fields
@@ -64,7 +64,7 @@ static int driver_close(struct inode *inode, struct file *file_ptr);
 static ssize_t driver_read (struct file *file_pointer, char __user *user_space_buffer, size_t count, loff_t *offset);
 static ssize_t driver_write (struct file *file_pointer, const char *user_space_buffer, size_t count, loff_t *offset);
 static void device_write(void);
-static void device_read(void);
+static int device_read(void);
 static long read_from_reg(void __iomem *address);
 static void write_to_reg(void __iomem *address, unsigned long data);
 
@@ -180,7 +180,7 @@ static int spi_probe(struct platform_device *pdev)
 	spi_device->rx_data_buffer[MSG_BUFFER_SIZE] = EOT;
 	spi_device->tx_data_buffer[MSG_BUFFER_SIZE] = EOT;
 
-    printk("SPI probe: Device connected at address: %x\n", BASEADDRESS);
+    printk("SPI probe: Device connected.\n");
 	return NO_ERROR;
 }
 
@@ -246,27 +246,26 @@ static ssize_t driver_write(struct file *file_pointer,
 	*/
 	//  printk("SPI driver_write\n");
 
+	size_t len;
+
 	if (count-1 > MSG_BUFFER_SIZE) {
 		printk("Maximum data length allowed is %d.\n", MSG_BUFFER_SIZE);
-		return 0;
+		return count;
 	}
 	// Ignore empty data
 	if (count <= 1) {
-		return 1;
+		return count;
 	}
 
 	copy_from_user(spi_device->tx_data_buffer, user_space_buffer, count);
 	spi_device->tx_data_buffer[count-1] = EOT;
 
-	size_t len = strlen(spi_device->tx_data_buffer);
-    if (*offset >= len){
-        return 0;
-    }
+	len = strlen(spi_device->tx_data_buffer);
     *offset += len;
 
 	// Write data to device
  	device_write();
-    return count;
+    return count;	// return num of chars recieved from user space
 }
 
 static void device_write(void)
@@ -302,17 +301,17 @@ static ssize_t driver_read (struct file *file_pointer,
 		Transfers data from rx_data_buffer to file.
 	*/
 	// printk("SPI driver_read\n");
-	device_read();
+	size_t len;
+	len = device_read();
 
-	size_t len = strlen(spi_device->rx_data_buffer);
     *offset += len;
 
     copy_to_user(user_space_buffer, spi_device->rx_data_buffer, len);
 
-    return len;
+    return len;	// return num of chars read
 }
 
-static void device_read(void) 
+static int device_read(void) 
 {
 	/*
 		Reads data from spi rxdata fifo into rx_data_buffer.
@@ -335,6 +334,7 @@ static void device_read(void)
 		i++;
 	}
 	spi_device->rx_data_buffer[i] = EOT;
+	return i;	// return num of chars read
 }
 
 // kernel interface
