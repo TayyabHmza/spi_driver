@@ -1,5 +1,9 @@
-
-// SPI driver without interrupts
+/*
+	File: spi_nointerrupt.c
+	Authors: Salman, Tayyab, Zawaher
+	Last updated: 22-11-2024
+	Description: Linux driver for SPI without interrupts.
+*/
 
 #include <linux/module.h>
 #include <linux/device.h>
@@ -65,8 +69,8 @@ static ssize_t driver_read (struct file *file_pointer, char __user *user_space_b
 static ssize_t driver_write (struct file *file_pointer, const char *user_space_buffer, size_t count, loff_t *offset);
 static void device_write(void);
 static int device_read(void);
-static long read_from_reg(void __iomem *address);
-static void write_to_reg(void __iomem *address, unsigned long data);
+inline long read_from_reg(void __iomem *address);
+inline void write_to_reg(void __iomem *address, unsigned long data);
 
 // Structures
 
@@ -90,7 +94,7 @@ static struct platform_driver spi_driver = {
 	.probe = spi_probe,
 	.remove = spi_remove,
 	.driver = {
-		.name = "Salman-Tayyab-Zawaher's_driver",
+		.name = "stz_spidriver",
 		.of_match_table = matching_devices
 	},
 };
@@ -199,18 +203,20 @@ static int spi_remove(struct platform_device *pdev)
 	return NO_ERROR;
 }
 
-static void write_to_reg(void __iomem *address,
+inline void write_to_reg(void __iomem *address,
 						 unsigned long data)
 {
 	iowrite32(data, address);
 }
 
-static long read_from_reg(void __iomem *address)
+inline long read_from_reg(void __iomem *address)
 {
 	return ioread32(address);
 }
 
-static int driver_open(struct inode *inode, struct file *file_ptr) {
+static int driver_open(struct inode *inode,
+					   struct file *file_ptr)
+{
 	/*
 		Called when /dev spi files are accessed (opened)
 		Selects one of the two CS lines according to the file:
@@ -227,7 +233,9 @@ static int driver_open(struct inode *inode, struct file *file_ptr) {
 	return NO_ERROR;
 }
 
-static int driver_close(struct inode *inode, struct file *file_ptr) {
+static int driver_close(struct inode *inode,
+						struct file *file_ptr)
+{
 	/*
 		Called when /dev files are accessed (closed)
 	*/
