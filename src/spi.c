@@ -265,8 +265,7 @@ static ssize_t driver_write(struct file *file_pointer,
 	spi_device->data_tx_available = 1;
 	// Enable tx interrupts
 	// (If device is available to recieve more data, an interrupt will come and data will be sent.)
-	//write_to_reg(BASEADDRESS+SPI_IE_R, INTERRUPT_TX | INTERRUPT_RX);
-	spi_interrupt_handler(17, NULL);
+	write_to_reg(BASEADDRESS+SPI_IE_R, INTERRUPT_TX | INTERRUPT_RX);
     return count;
 }
 
@@ -294,8 +293,7 @@ static void device_write(void)
 	}
 
 	// Enable tx interrupts
-	//write_to_reg(BASEADDRESS+SPI_IE_R, INTERRUPT_TX | INTERRUPT_RX);
-	spi_interrupt_handler(17, NULL);
+	write_to_reg(BASEADDRESS+SPI_IE_R, INTERRUPT_TX | INTERRUPT_RX);
 }
 
 static void device_read(void) 
