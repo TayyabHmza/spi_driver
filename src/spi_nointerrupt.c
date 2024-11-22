@@ -32,7 +32,7 @@
 #define SPI_IE_R        0x70 // SPI interrupt enable
 #define SPI_IP_R        0x74 // SPI interrupt pending
 
-// Parameters/
+// Parameters
 #define MSG_BUFFER_SIZE					256
 
 // SPI register bit fields
@@ -130,7 +130,7 @@ static void spi_exit(void)
 		Called when driver is unloaded from kernel.
 	*/
 	platform_driver_unregister(&spi_driver);
-	printk(KERN_INFO "SPI driver removed.\n");
+	printk("SPI driver removed.\n");
 }
 
 static int spi_probe(struct platform_device *pdev)
@@ -252,8 +252,6 @@ static ssize_t driver_write(struct file *file_pointer,
 		Called when /dev spi files are written to.
 		Transfers data from file to tx_data_buffer.
 	*/
-	//  printk("SPI driver_write\n");
-
 	size_t len;
 
 	if (count-1 > MSG_BUFFER_SIZE) {
@@ -283,17 +281,14 @@ static void device_write(void)
 	/*
 		Writes data from tx_data_buffer into spi txdata fifo.
 	*/
-	// printk("SPI device_write\n");
-
 	uint i = 0;
 
-	// Loop until fifo is full, or end of message.
+	// Loop until fifo is full
 	while ( !(read_from_reg(BASEADDRESS + SPI_TXDATA_R) & TX_FIFO_FULL) ) {
 
 		// Write character to TXDATA register
 		write_to_reg(BASEADDRESS + SPI_TXDATA_R, spi_device->tx_data_buffer[i]);
-		// printk("\ntx_data_buffer: %c: %d\n", spi_device->tx_data_buffer[i], spi_device->tx_data_buffer[i]);
-		
+		// If end of message, break
 		if (spi_device->tx_data_buffer[i] == EOT) {
 			break ;
 		}
@@ -310,7 +305,6 @@ static ssize_t driver_read (struct file *file_pointer,
 		Called when /proc/spi file is read.
 		Transfers data from rx_data_buffer to file.
 	*/
-	// printk("SPI driver_read\n");
 	size_t len;
 	len = device_read();
 
@@ -328,19 +322,20 @@ static int device_read(void)
 	/*
 		Reads data from spi rxdata fifo into rx_data_buffer.
 	*/
-	// printk("SPI device_read\n");
-
 	uint i = 0;
 	char end_flag = 0;
 	ulong data;
 
 	// Read data, loop until fifo is empty or a end of transmission char.
+	// Read character from RXDATA register.
 	data = read_from_reg(BASEADDRESS + SPI_RXDATA_R);
 	end_flag = (data & RX_FIFO_EMPTY) || ((data & SPI_DATA) == EOT);
-	while (!end_flag) {
-		// Read character from RXDATA register	
+	while (!end_flag) {	
+		// Write character to buffer.
 		spi_device->rx_data_buffer[i] = (char) (data & SPI_DATA);
 		// printk("\nrx_data_buffer: %c: %d\n", spi_device->rx_data_buffer[i], spi_device->rx_data_buffer[i]);
+		
+		// Read character from RXDATA register.
 		data = read_from_reg(BASEADDRESS + SPI_RXDATA_R);
 		end_flag = (data & RX_FIFO_EMPTY) || ((data & SPI_DATA) == EOT);
 		i++;
@@ -349,7 +344,7 @@ static int device_read(void)
 	return i;	// return num of chars read
 }
 
-// kernel interface
+// kernel declarations
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("SALMAN");
@@ -358,4 +353,3 @@ MODULE_AUTHOR("ZAWAHER");
 MODULE_DEVICE_TABLE(of, matching_devices);
 module_init(spi_init);
 module_exit(spi_exit);
-
