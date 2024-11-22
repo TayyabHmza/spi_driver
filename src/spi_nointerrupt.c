@@ -3,11 +3,11 @@
 
 #include <linux/module.h>
 #include <linux/device.h>
-#include <linux/kdev_t.h>
 #include <linux/platform_device.h>
 #include <linux/spi/spi.h>
 #include <linux/proc_fs.h>
 #include <linux/fs.h>
+#include <linux/kdev_t.h>
 #include <linux/cdev.h>
 
 // SPI register offsets
@@ -212,7 +212,7 @@ static long read_from_reg(void __iomem *address)
 
 static int driver_open(struct inode *inode, struct file *file_ptr) {
 	/*
-		Called when /dev files are accessed (opened)
+		Called when /dev spi files are accessed (opened)
 		Selects one of the two CS lines according to the file:
 			spi0: CS 0
 			spi1: CS 1
@@ -241,7 +241,7 @@ static ssize_t driver_write(struct file *file_pointer,
 						loff_t *offset)
 {
 	/*
-		Called when /proc/spi file is written.
+		Called when /dev spi files are written to.
 		Transfers data from file to tx_data_buffer.
 	*/
 	//  printk("SPI driver_write\n");
@@ -257,7 +257,9 @@ static ssize_t driver_write(struct file *file_pointer,
 		return count;
 	}
 
-	copy_from_user(spi_device->tx_data_buffer, user_space_buffer, count);
+	if (copy_from_user(spi_device->tx_data_buffer, user_space_buffer, count)) {
+		printk("SPI device: error while getting data from user.\n");
+	}
 	spi_device->tx_data_buffer[count-1] = EOT;
 
 	len = strlen(spi_device->tx_data_buffer);
@@ -306,7 +308,9 @@ static ssize_t driver_read (struct file *file_pointer,
 
     *offset += len;
 
-    copy_to_user(user_space_buffer, spi_device->rx_data_buffer, len);
+    if (copy_to_user(user_space_buffer, spi_device->rx_data_buffer, len)) {
+		printk("SPI device: error while writing data to user buffer.\n");
+	}
 
     return len;	// return num of chars read
 }
@@ -340,7 +344,9 @@ static int device_read(void)
 // kernel interface
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("SALMAN, TAYYAB, ZAWAHER");
+MODULE_AUTHOR("SALMAN");
+MODULE_AUTHOR("TAYYAB");
+MODULE_AUTHOR("ZAWAHER");
 MODULE_DEVICE_TABLE(of, matching_devices);
 module_init(spi_init);
 module_exit(spi_exit);

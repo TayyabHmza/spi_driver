@@ -62,7 +62,7 @@
 #define ERROR           		1
 
 static int __init spi_init(void);
-static void __exit spi_exit(void);
+static void spi_exit(void);
 static int spi_probe(struct platform_device *dev);
 static int spi_remove(struct platform_device *dev);
 static ssize_t driver_read (struct file *file_pointer, char __user *user_space_buffer, size_t count, loff_t *offset);
@@ -111,17 +111,22 @@ struct proc_ops driver_proc_ops = {
 
 static int __init spi_init(void)
 {
-	printk("Hello, world!\n");
-
+	/*
+		Called when driver is loaded into kernel.
+	*/
+	printk("SPI driver loaded.\n");
 	platform_driver_register(&spi_driver);
 
   	return NO_ERROR;
 }
 
-static void __exit spi_exit(void)
+static void spi_exit(void)
 {
+	/*
+		Called when driver is unloaded from kernel.
+	*/
 	platform_driver_unregister(&spi_driver);
-	printk(KERN_INFO "Goodbye, world!\n");
+	printk(KERN_INFO "SPI driver removed.\n");
 }
 
 static struct spi_device_state *spi_device;
@@ -132,13 +137,12 @@ static int spi_probe(struct platform_device *pdev)
 		Allocates resources for device, enables interrupts and initializes device.
 	*/
 
-	printk("SPI Probe\n");
-
 	// Allocate dynamic memory struct to store device info.
 	// This is freed automatically by kernel when device or driver is removed: no need to manually free.
 	spi_device = devm_kzalloc(&pdev->dev, sizeof(struct spi_device_state), GFP_KERNEL);
 	if (spi_device == NULL) {
 		printk("SPI device: memory allocate error.\n");
+		return ERROR;
 	}
 
 	// Store struct pointer with device
@@ -170,8 +174,8 @@ static int spi_probe(struct platform_device *pdev)
 	// Setup proc dirs
 	static struct proc_dir_entry *spi_proc_node;
 	spi_proc_node = proc_create("stz_spidriver", 0, NULL, &driver_proc_ops);
-    if  (spi_proc_node == NULL){
-        printk ("module_init : error\n");
+    if  (spi_proc_node == NULL) {
+        printk ("SPI device: device file error.\n");
         return ERROR;
     }
 
@@ -187,14 +191,18 @@ static int spi_probe(struct platform_device *pdev)
 	write_to_reg(BASEADDRESS+SPI_RX_MARK_R, 0);
 	write_to_reg(BASEADDRESS+SPI_IE_R, INTERRUPT_RX);
 
-    printk("Device connected at address: %x\n", BASEADDRESS);
+    printk("SPI probe: Device connected.\n");
 	return NO_ERROR;
 }
 
 static int spi_remove(struct platform_device *pdev)
-{
-    printk("Device removed.\n");
+{	
+	/*
+		Called when device is disconnected.
+		Deletes device files.
+	*/
 
+    printk("SPI device removed.\n");
 	return NO_ERROR;
 }
 
