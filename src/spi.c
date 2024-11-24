@@ -1,18 +1,19 @@
+/*
+	File: spi_nointerrupt.c
+	Authors: Salman, Tayyab, Zawaher
+	Last updated:
+	Description: Linux driver for SPI with interrupts.
+*/
 
-
-// Todo: what happens when rx_index and tx_index reach MAX_BUFFER_SIZE
-
-#include <linux/clk.h>
 #include <linux/module.h>
-#include <linux/interrupt.h>
-#include <linux/of.h>
+#include <linux/device.h>
 #include <linux/platform_device.h>
 #include <linux/spi/spi.h>
-#include <linux/io.h>
-#include <linux/log2.h>
 #include <linux/proc_fs.h>
-#include <linux/device.h>
+#include <linux/fs.h>
 #include <linux/kdev_t.h>
+#include <linux/cdev.h>
+#include <linux/interrupt.h>
 
 // SPI register offsets
 #define SPI_SCK_DIV_R   0x00 // Serial clock divisor
@@ -33,8 +34,7 @@
 #define SPI_IP_R        0x74 // SPI interrupt pending
 
 // Parameters
-#define MAX_NUM_CS 2
-#define MSG_BUFFER_SIZE 		256
+#define MSG_BUFFER_SIZE					256
 
 // SPI register bit fields
 #define CLK_POLARITY_HIGH 				1
@@ -51,31 +51,37 @@
 #define LSB_ENDIANNESS 					1
 #define INTERRUPT_TX 					01
 #define INTERRUPT_RX 					10
-#define TX_FIFO_FULL					(1<<31)
-#define RX_FIFO_EMPTY					(1<<31)
+#define TX_FIFO_FULL					0x80000000
+#define RX_FIFO_EMPTY					0x80000000
 #define SPI_DATA						0x000000FF
 
 // Definations
-#define BASEADDRESS     		spi_device->base_address
+#define BASEADDRESS     				spi_device->base_address
+#define EOT								'\0'		// end of transmission char
+#define NO_ERROR        				0
+#define ERROR           				1
 
-#define NO_ERROR        		0
-#define ERROR           		1
-
+// Function definations
 static int __init spi_init(void);
 static void spi_exit(void);
-static int spi_probe(struct platform_device *dev);
-static int spi_remove(struct platform_device *dev);
+static int spi_probe(struct platform_device *pdev);
+static int spi_remove(struct platform_device *pdev);
+static int driver_open(struct inode *inode, struct file *file_ptr);
+static int driver_close(struct inode *inode, struct file *file_ptr);
 static ssize_t driver_read (struct file *file_pointer, char __user *user_space_buffer, size_t count, loff_t *offset);
 static ssize_t driver_write (struct file *file_pointer, const char *user_space_buffer, size_t count, loff_t *offset);
 static void device_write(void);
 static void device_read(void);
-static long read_from_reg(void __iomem *address);
-static void write_to_reg(void __iomem *address, unsigned long data);
+inline long read_from_reg(void __iomem *address);
+inline void write_to_reg(void __iomem *address, unsigned long data);
 static irqreturn_t spi_interrupt_handler(int irq, void* spi_device);
 
 // Structures
 
 struct spi_device_state {
+	dev_t major_no;
+	struct cdev cdev;
+	struct class *dev_class;
     void __iomem *base_address;
 	
 	char data_tx_available;
@@ -88,6 +94,8 @@ struct spi_device_state {
 	char tx_data_buffer[MSG_BUFFER_SIZE];
 };
 
+static struct spi_device_state *spi_device;
+
 static const struct of_device_id matching_devices[] = {
 	{ .compatible = "sifive,spi0", },
 	{}
@@ -97,7 +105,7 @@ static struct platform_driver spi_driver = {
 	.probe = spi_probe,
 	.remove = spi_remove,
 	.driver = {
-		.name = "Salman-Tayyab-Zawaher's_driver",
+		.name = "stz_spidriver",
 		.of_match_table = matching_devices
 	},
 };
@@ -105,6 +113,14 @@ static struct platform_driver spi_driver = {
 struct proc_ops driver_proc_ops = {
     .proc_read = driver_read,
     .proc_write = driver_write
+};
+
+struct file_operations driver_dev_ops = {
+	.owner = THIS_MODULE,
+	.open = driver_open,
+    .read = driver_read,
+    .write = driver_write,
+	.release = driver_close
 };
 
 // Functions
@@ -116,7 +132,6 @@ static int __init spi_init(void)
 	*/
 	printk("SPI driver loaded.\n");
 	platform_driver_register(&spi_driver);
-
   	return NO_ERROR;
 }
 
@@ -126,10 +141,9 @@ static void spi_exit(void)
 		Called when driver is unloaded from kernel.
 	*/
 	platform_driver_unregister(&spi_driver);
-	printk(KERN_INFO "SPI driver removed.\n");
+	printk("SPI driver removed.\n");
 }
 
-static struct spi_device_state *spi_device;
 static int spi_probe(struct platform_device *pdev)
 {
 	/*
@@ -178,8 +192,19 @@ static int spi_probe(struct platform_device *pdev)
         printk ("SPI device: device file error.\n");
         return ERROR;
     }
+	
+	// Setup dev dirs
+	alloc_chrdev_region(&spi_device->major_no, 0, 2, "spi");							// allocate device major num and two minor nums (0,1) for two CS lines
+	spi_device->dev_class = class_create(THIS_MODULE, "spi");							// create device file in /dev/class
+	device_create(spi_device->dev_class, NULL, spi_device->major_no, NULL, "spi0");		// create two files /dev/spi0 and /dev/spi1 for the two CS lines
+	device_create(spi_device->dev_class, NULL, MKDEV(MAJOR(spi_device->major_no), MINOR(spi_device->major_no) + 1), NULL, "spi1");
 
-	// Initialize flags
+																	// initialize spi as a character device by setting struct cdev
+	cdev_init(&(spi_device->cdev), &driver_dev_ops);				// register file operations
+	spi_device->cdev.owner=THIS_MODULE;								// set this driver as owner of char device files
+	cdev_add(&(spi_device->cdev), spi_device->major_no, 2);			// register cdev structure with kernel
+
+	// Initialize flags and registers
 	spi_device->data_tx_available = 0;
 	spi_device->data_rx_available = 0;
 	spi_device->rx_index = 0;
@@ -201,20 +226,54 @@ static int spi_remove(struct platform_device *pdev)
 		Called when device is disconnected.
 		Deletes device files.
 	*/
+	device_destroy(spi_device->dev_class, spi_device->major_no);
+	class_destroy(spi_device->dev_class);
+	unregister_chrdev_region(spi_device->major_no, 2);
+	cdev_del(&(spi_device->cdev));
 
     printk("SPI device removed.\n");
 	return NO_ERROR;
 }
 
-static void write_to_reg(void __iomem *address,
+inline void write_to_reg(void __iomem *address,
 						 unsigned long data)
 {
 	iowrite32(data, address);
 }
 
-static long read_from_reg(void __iomem *address)
+inline long read_from_reg(void __iomem *address)
 {
 	return ioread32(address);
+}
+
+
+static int driver_open(struct inode *inode,
+					   struct file *file_ptr)
+{
+	/*
+		Called when /dev spi files are accessed (opened)
+		Selects one of the two CS lines according to the file:
+			spi0: CS 0
+			spi1: CS 1
+	*/
+	uint minor_no = iminor(inode);
+	if (minor_no == 0) {
+		write_to_reg(BASEADDRESS+SPI_CS_ID_R, 1);
+	}
+	else if (minor_no == 1) {
+		write_to_reg(BASEADDRESS+SPI_CS_ID_R, 2);
+	}
+	return NO_ERROR;
+}
+
+static int driver_close(struct inode *inode,
+						struct file *file_ptr)
+{
+	/*
+		Called when /dev files are accessed (closed)
+	*/
+	write_to_reg(BASEADDRESS+SPI_CS_ID_R, 1);
+	return 0;
 }
 
 static ssize_t driver_read (struct file *file_pointer,
@@ -357,7 +416,9 @@ static irqreturn_t spi_interrupt_handler(int irq, void* dev)
 // kernel interface
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("SALMAN, TAYYAB, ZAWAHER");
+MODULE_AUTHOR("SALMAN");
+MODULE_AUTHOR("TAYYAB");
+MODULE_AUTHOR("ZAWAHER");
 MODULE_DEVICE_TABLE(of, matching_devices);
 module_init(spi_init);
 module_exit(spi_exit);
